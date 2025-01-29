@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:app/subnet.dart';
+import 'package:app/node.dart';
 
 
 void main() {
@@ -75,7 +73,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Albums Demo'),
+        title: const Text('Subnets'),
       ),
       body: FutureBuilder<List<Subnet>>(
         future: _futureSubnets,
@@ -101,13 +99,21 @@ class _MyHomePageState extends State<MyHomePage> {
               itemCount: subnets.length,
               itemBuilder: (context, idx) {
                 final subnet = subnets[idx];
-                return Container(
+                return InkWell(
+                  onTap: (){
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SubnetDetailScreen(subnet: subnet),
+                      ),
+                    );
+                },
+                child: Container(
                   color: idx % 2 == 0 ? Colors.deepPurpleAccent : Colors.transparent,
                   padding: const EdgeInsets.all(8.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Display data from the album object
                       Text('${subnet.name} ${subnet.node}/${subnet.mask}'),
                     ],
                   ),
@@ -117,77 +123,90 @@ class _MyHomePageState extends State<MyHomePage> {
           }
 
           // 4. If the list is empty
-          return const Center(child: Text('No albums found.'));
+          return const Center(child: Text('No subnets found.'));
         },
       )
     );
   }
-  //int _counter = 0;
+}
+class SubnetDetailScreen extends StatefulWidget {
+  final Subnet subnet;
 
-  // void _incrementCounter() {/aluu
-  //   setState(() {
-  //     // This call to setState tells the Flutter framework that something has
-  //     // changed in this State, which causes it to rerun the build method below
-  //     // so that the display can reflect the updated values. If we changed
-  //     // _counter without calling setState(), then the build method would not be
-  //     // called again, and so nothing would appear to happen.
-  //     _counter++;
-  //   });
-  // }
+  const SubnetDetailScreen({
+    Key? key,
+    required this.subnet,
+  }) : super(key: key);
 
-  // @override
-  // Widget build(BuildContext context) {
-  //   // This method is rerun every time setState is called, for instance as done
-  //   // by the _incrementCounter method above.
-  //   //
-  //   // The Flutter framework has been optimized to make rerunning build methods
-  //   // fast, so that you can just rebuild anything that needs updating rather
-  //   // than having to individually change instances of widgets.
-  //   return Scaffold(
-  //     appBar: AppBar(
-  //       // TRY THIS: Try changing the color here to a specific color (to
-  //       // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-  //       // change color while the other colors stay the same.
-  //       backgroundColor: Colors.deepPurple,
-  //       // Here we take the value from the MyHomePage object that was created by
-  //       // the App.build method, and use it to set our appbar title.
-  //       title: Text(widget.title),
-  //     ),
-  //     body: Center(
-  //       // Center is a layout widget. It takes a single child and positions it
-  //       // in the middle of the parent.
-  //       child: Column(
-  //         // Column is also a layout widget. It takes a list of children and
-  //         // arranges them vertically. By default, it sizes itself to fit its
-  //         // children horizontally, and tries to be as tall as its parent.
-  //         //
-  //         // Column has various properties to control how it sizes itself and
-  //         // how it positions its children. Here we use mainAxisAlignment to
-  //         // center the children vertically; the main axis here is the vertical
-  //         // axis because Columns are vertical (the cross axis would be
-  //         // horizontal).
-  //         //
-  //         // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-  //         // action in the IDE, or press "p" in the console), to see the
-  //         // wireframe for each widget.
-  //         mainAxisAlignment: MainAxisAlignment.center,
-  //         children: <Widget>[
-  //           const Text(
-  //             'You have pushed the button this many times:',
-  //           ),
-  //           Text(
-  //             '$_counter',
-  //             style: Theme.of(context).textTheme.headlineMedium,
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //     floatingActionButton: FloatingActionButton(
-  //       onPressed: _incrementCounter,
-  //       tooltip: 'Increment',
-  //       child: const Icon(Icons.add),
-  //     ), // This trailing comma makes auto-formatting nicer for build methods.
-  //     floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, 
-  //   );
-  // }
+  @override
+  State<SubnetDetailScreen> createState() => _SubnetDetailScreenState();
+}
+
+class _SubnetDetailScreenState extends State<SubnetDetailScreen> {
+  late Future<List<Node>> _futureNodes;
+
+  @override
+  void initState() {
+    super.initState();
+    _futureNodes = fetchNodes();
+  }
+
+@override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Nodes for ${widget.subnet.name}'),
+      ),
+      body: FutureBuilder<List<Node>>(
+        future: _futureNodes,
+        builder: (context, snapshot) {
+          // 1. Loading state
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // 2. Error state
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Error: ${snapshot.error}'),
+            );
+          }
+
+          // 3. Data loaded
+          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+            final nodes = snapshot.data!;
+
+            // Build the ListView
+            return ListView.builder(
+              itemCount: nodes.length,
+              itemBuilder: (context, idx) {
+                final node = nodes[idx];
+                return InkWell(
+                  onTap: (){
+                    // Navigator.push(
+                      // context,
+                      // MaterialPageRoute(
+                      //   builder: (context) => SubnetDetailScreen(subnet: subnet),
+                      // ),
+                    // );
+                },
+                child: Container(
+                  color: idx % 2 == 0 ? Colors.deepPurpleAccent : Colors.transparent,
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('${node.hostname} ${node.node}'),
+                    ],
+                  ),
+                );
+              },
+            );
+          }
+
+          // 4. If the list is empty
+          return const Center(child: Text('No nodes found.'));
+        },
+      )
+    );
+  }
 }
