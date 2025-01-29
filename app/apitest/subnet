@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Alpha",
+    "id": 1,
+    "node": 0,
+    "mask": 8,
+    "created": 1680307200
+  },
+  {
+    "name": "Beta",
+    "id": 2,
+    "node": 64,
+    "mask": 8,
+    "created": 1680393600
+  },
+  {
+    "name": "Gamma",
+    "id": 3,
+    "node": 128,
+    "mask": 8,
+    "created": 1680480000
+  }
+]
