@@ -7,7 +7,7 @@ Future<List<Subnet>> fetchSubnets() async {
 
   await Future.delayed(const Duration(seconds: 1));
   final response = await http.get(
-    Uri.parse('https://jsonplaceholder.typicode.com/albums'),
+    Uri.parse('https://raw.githubusercontent.com/edvardxyz/tp/refs/heads/master/app/apitest/subnet'),
     // Send authorization headers to the backend.
     headers: {
       HttpHeaders.authorizationHeader: 'Basic your_api_token_here',

@@ -4,59 +4,12 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:app/subnet.dart';
 
 
 void main() {
   runApp(const MyApp());
 }
-
-
-Future<List<Album>> fetchAlbums() async {
-
-  await Future.delayed(const Duration(seconds: 1));
-  final response = await http.get(
-    Uri.parse('https://jsonplaceholder.typicode.com/albums'),
-    // Send authorization headers to the backend.
-    headers: {
-      HttpHeaders.authorizationHeader: 'Basic your_api_token_here',
-    },
-  );
-  if(response.statusCode == 200){
-    final List<dynamic> data = jsonDecode(response.body);
-    return data.map((json) => Album.fromJson(json)).toList();
-  } else {
-    throw Exception('Failed to load users');
-  }
-}
-
-class Album {
-  final int userId;
-  final int id;
-  final String title;
-
-  const Album({
-    required this.userId,
-    required this.id,
-    required this.title,
-  });
-
-  factory Album.fromJson(Map<String, dynamic> json) {
-    return switch (json) {
-      {
-        'userId': int userId,
-        'id': int id,
-        'title': String title,
-      } =>
-        Album(
-          userId: userId,
-          id: id,
-          title: title,
-        ),
-      _ => throw const FormatException('Failed to load album.'),
-    };
-  }
-}
-
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -110,12 +63,12 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
 
-  late Future<List<Album>> _futureAlbums;
+  late Future<List<Subnet>> _futureSubnets;
 
   @override
   void initState() {
     super.initState();
-    _futureAlbums = fetchAlbums(); // Call your fetch function here
+    _futureSubnets = fetchSubnets();
   }
 
 @override
@@ -124,8 +77,8 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: const Text('Albums Demo'),
       ),
-      body: FutureBuilder<List<Album>>(
-        future: _futureAlbums,
+      body: FutureBuilder<List<Subnet>>(
+        future: _futureSubnets,
         builder: (context, snapshot) {
           // 1. Loading state
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -141,13 +94,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
           // 3. Data loaded
           if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-            final albums = snapshot.data!;
+            final subnets = snapshot.data!;
 
             // Build the ListView
             return ListView.builder(
-              itemCount: albums.length,
+              itemCount: subnets.length,
               itemBuilder: (context, idx) {
-                final album = albums[idx];
+                final subnet = subnets[idx];
                 return Container(
                   color: idx % 2 == 0 ? Colors.deepPurpleAccent : Colors.transparent,
                   padding: const EdgeInsets.all(8.0),
@@ -155,15 +108,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       // Display data from the album object
-                      Text('ID: ${album.id}'),
-                      // Show album title
-                      Flexible(
-                        child: Text(
-                          album.title,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      Text('${subnet.name} ${subnet.node}/${subnet.mask}'),
                     ],
                   ),
                 );
@@ -174,12 +119,12 @@ class _MyHomePageState extends State<MyHomePage> {
           // 4. If the list is empty
           return const Center(child: Text('No albums found.'));
         },
-      ),
+      )
     );
   }
   //int _counter = 0;
 
-  // void _incrementCounter() {
+  // void _incrementCounter() {/aluu
   //   setState(() {
   //     // This call to setState tells the Flutter framework that something has
   //     // changed in this State, which causes it to rerun the build method below
