@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:app/subnet.dart';
 import 'package:app/node.dart';
+import 'package:app/param.dart';
 
 void main() {
   runApp(const MyApp());
@@ -189,12 +190,12 @@ class _SubnetDetailScreenState extends State<SubnetDetailScreen> {
                     return DataRow(
                     onSelectChanged: (selected) {
                     if (selected == true) {
-                      //Navigator.push(
-                        //context,
-                        //MaterialPageRoute(
-                          //builder: (context) => SubnetDetailScreen(node: node),
-                        //),
-                      //);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => NodeDetailScreen(node: node),
+                        ),
+                      );
                     }
                   },
                       cells: [
@@ -270,8 +271,9 @@ class _NodeDetailScreenState extends State<NodeDetailScreen> {
                     child: DataTable(
                   showCheckboxColumn: false,
                   columns: const [
-                    DataColumn(label: Text('xxxx')),
-                    DataColumn(label: Text('xxxx')),
+                    DataColumn(label: Text('Name')),
+                    DataColumn(label: Text('id')),
+                    DataColumn(label: Text('value')),
                   ],
                   rows: params.map((param) {
                     return DataRow(
@@ -286,8 +288,9 @@ class _NodeDetailScreenState extends State<NodeDetailScreen> {
                     }
                   },
                       cells: [
-                        DataCell(Text(param.)),
-                        DataCell(Text(param.node.toString())),
+                        DataCell(Text(param.name)),
+                        DataCell(Text(param.paramId.toString())),
+                        DataCell(Text(param.value.toString())),
                       ],
                     );
                   }).toList(),
