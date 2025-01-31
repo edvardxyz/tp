@@ -95,8 +95,7 @@ Widget build(BuildContext context) {
               showCheckboxColumn: false,
               columns: const [
                 DataColumn(label: Text('Name')),
-                DataColumn(label: Text('Node')),
-                DataColumn(label: Text('Mask')),
+                DataColumn(label: Text('Subnet')),
               ],
               rows: subnets.map((subnet) {
                 return DataRow(
@@ -112,8 +111,7 @@ Widget build(BuildContext context) {
               },
                   cells: [
                     DataCell(Text(subnet.name)),
-                    DataCell(Text(subnet.node.toString())),
-                    DataCell(Text(subnet.mask.toString())),
+                    DataCell(Text('${subnet.node.toString()} / ${subnet.mask.toString()}')),
                   ],
                 );
               }).toList(),

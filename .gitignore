@@ -4,6 +4,7 @@
 *.png
 *.db
 *.jpg
+*.ods*
 
 # Miscellaneous
 *.class
