@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1,
+    "param_id": 101,
+    "name": "Parameter Alpha",
+    "size": 4,
+    "mask": 255,
+    "vmem": 512,
+    "type": 1,
+    "value": [21, 32, 44, 21],
+    "created": 1672531200
+  },
+  {
+    "id": 2,
+    "param_id": 102,
+    "name": "Parameter Beta",
+    "size": 4,
+    "mask": 254,
+    "vmem": 1024,
+    "type": 1,
+    "value": [100, 101, 99, 98],
+    "created": 1672617600
+  },
+  {
+    "id": 3,
+    "param_id": 103,
+    "name": "Parameter Gamma",
+    "size": 3,
+    "mask": null,
+    "vmem": 256,
+    "type": 2,
+    "value": [3.14, 2.71, 1.41],
+    "created": 1672704000
+  },
+  {
+    "id": 4,
+    "param_id": 104,
+    "name": "Parameter Delta",
+    "size": 2,
+    "mask": 255,
+    "vmem": 4096,
+    "type": 2,
+    "value": [1.0, 0.99],
+    "created": 1672790400
+  },
+  {
+    "id": 5,
+    "param_id": 105,
+    "name": "Parameter Epsilon",
+    "size": 5,
+    "mask": 250,
+    "vmem": 2048,
+    "type": 1,
+    "value": [10, 11, 12, 13, 14],
+    "created": 1672876800
+  }
+]

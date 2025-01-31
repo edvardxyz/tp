@@ -4,20 +4,18 @@ import 'dart:convert';
 import 'dart:io';
 
 Future<List<Subnet>> fetchSubnets() async {
-
-  await Future.delayed(const Duration(seconds: 1));
   final response = await http.get(
     Uri.parse('https://raw.githubusercontent.com/edvardxyz/tp/refs/heads/master/app/apitest/subnet'),
     // Send authorization headers to the backend.
-    headers: {
-      HttpHeaders.authorizationHeader: 'Basic your_api_token_here',
-    },
+    // headers: {
+    //   HttpHeaders.authorizationHeader: 'Basic your_api_token_here',
+    // },
   );
   if(response.statusCode == 200){
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((json) => Subnet.fromJson(json)).toList();
   } else {
-    throw Exception('Failed to load users');
+    throw Exception('Failed to load subnets');
   }
 }
 
@@ -52,7 +50,7 @@ class Subnet {
           mask: mask,
           created: created,
         ),
-      _ => throw const FormatException('Failed to load album.'),
+      _ => throw const FormatException('Failed to load subnets.'),
     };
   }
 }
