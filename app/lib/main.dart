@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:app/subnet.dart';
 import 'package:app/node.dart';
 
-
 void main() {
   runApp(const MyApp());
 }
@@ -60,7 +59,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-
   late Future<List<Subnet>> _futureSubnets;
 
   @override
@@ -70,65 +68,66 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
 @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Subnets'),
-      ),
-      body: FutureBuilder<List<Subnet>>(
-        future: _futureSubnets,
-        builder: (context, snapshot) {
-          // 1. Loading state
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('Subnets'),
+    ),
+    body: FutureBuilder<List<Subnet>>(
+      future: _futureSubnets,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final subnets = snapshot.data!;
 
-          // 2. Error state
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          }
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal, // Allows horizontal scroll if needed
+            child: SizedBox(
+              width: MediaQuery.of(context).size.width,
 
-          // 3. Data loaded
-          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-            final subnets = snapshot.data!;
-
-            // Build the ListView
-            return ListView.builder(
-              itemCount: subnets.length,
-              itemBuilder: (context, idx) {
-                final subnet = subnets[idx];
-                return InkWell(
-                  onTap: (){
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => SubnetDetailScreen(subnet: subnet),
-                      ),
-                    );
-                },
-                child: Container(
-                  color: idx % 2 == 0 ? Colors.deepPurpleAccent : Colors.transparent,
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('${subnet.name} ${subnet.node}/${subnet.mask}'),
-                    ],
-                  ),
-                );
+            child: DataTable(
+              showCheckboxColumn: false,
+              columns: const [
+                DataColumn(label: Text('Name')),
+                DataColumn(label: Text('Node')),
+                DataColumn(label: Text('Mask')),
+              ],
+              rows: subnets.map((subnet) {
+                return DataRow(
+                onSelectChanged: (selected) {
+                if (selected == true) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SubnetDetailScreen(subnet: subnet),
+                    ),
+                  );
+                }
               },
-            );
-          }
+                  cells: [
+                    DataCell(Text(subnet.name)),
+                    DataCell(Text(subnet.node.toString())),
+                    DataCell(Text(subnet.mask.toString())),
+                  ],
+                );
+              }).toList(),
+              ),
+            )
+          );
+        }
 
-          // 4. If the list is empty
-          return const Center(child: Text('No subnets found.'));
-        },
-      )
-    );
-  }
+        return const Center(child: Text('No subnets found.'));
+      },
+    ),
+  );
 }
+}
+
 class SubnetDetailScreen extends StatefulWidget {
   final Subnet subnet;
 
@@ -150,63 +149,157 @@ class _SubnetDetailScreenState extends State<SubnetDetailScreen> {
     _futureNodes = fetchNodes();
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Nodes for ${widget.subnet.name}'),
-      ),
-      body: FutureBuilder<List<Node>>(
-        future: _futureNodes,
-        builder: (context, snapshot) {
-          // 1. Loading state
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        appBar: AppBar(
+          title: Text('Nodes for ${widget.subnet.name}'),
+        ),
+        body: FutureBuilder<List<Node>>(
+          future: _futureNodes,
+          builder: (context, snapshot) {
+            // 1. Loading state
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          // 2. Error state
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          }
+            // 2. Error state
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Error: ${snapshot.error}'),
+              );
+            }
 
-          // 3. Data loaded
-          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-            final nodes = snapshot.data!;
-
-            // Build the ListView
-            return ListView.builder(
-              itemCount: nodes.length,
-              itemBuilder: (context, idx) {
-                final node = nodes[idx];
-                return InkWell(
-                  onTap: (){
-                    // Navigator.push(
-                      // context,
-                      // MaterialPageRoute(
-                      //   builder: (context) => SubnetDetailScreen(subnet: subnet),
-                      // ),
-                    // );
-                },
-                child: Container(
-                  color: idx % 2 == 0 ? Colors.deepPurpleAccent : Colors.transparent,
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('${node.hostname} ${node.node}'),
-                    ],
+            // 3. Data loaded
+            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              final nodes = snapshot.data!;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal, // Allows horizontal scroll if needed
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: DataTable(
+                  showCheckboxColumn: false,
+                  columns: const [
+                    DataColumn(label: Text('Hostname')),
+                    DataColumn(label: Text('Node')),
+                  ],
+                  rows: nodes.map((node) {
+                    return DataRow(
+                    onSelectChanged: (selected) {
+                    if (selected == true) {
+                      //Navigator.push(
+                        //context,
+                        //MaterialPageRoute(
+                          //builder: (context) => SubnetDetailScreen(node: node),
+                        //),
+                      //);
+                    }
+                  },
+                      cells: [
+                        DataCell(Text(node.hostname)),
+                        DataCell(Text(node.node.toString())),
+                      ],
+                    );
+                  }).toList(),
                   ),
-                );
-              },
-            );
-          }
+                  ),
+                )
+              );
+            }
 
-          // 4. If the list is empty
-          return const Center(child: Text('No nodes found.'));
-        },
-      )
-    );
+            // 4. If the list is empty
+            return const Center(child: Text('No nodes found.'));
+          },
+        ));
+  }
+}
+
+class NodeDetailScreen extends StatefulWidget {
+  final Node node;
+
+  const NodeDetailScreen({
+    Key? key,
+    required this.node,
+  }) : super(key: key);
+
+  @override
+  State<NodeDetailScreen> createState() => _NodeDetailScreenState();
+}
+
+class _NodeDetailScreenState extends State<NodeDetailScreen> {
+  late Future<List<Param>> _futureParams;
+
+  @override
+  void initState() {
+    super.initState();
+    _futureParams = fetchParams();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        appBar: AppBar(
+          title: Text('Parameters for ${widget.node.hostname}'),
+        ),
+        body: FutureBuilder<List<Param>>(
+          future: _futureParams,
+          builder: (context, snapshot) {
+            // 1. Loading state
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            // 2. Error state
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Error: ${snapshot.error}'),
+              );
+            }
+
+            // 3. Data loaded
+            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              final params = snapshot.data!;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal, // Allows horizontal scroll if needed
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: DataTable(
+                  showCheckboxColumn: false,
+                  columns: const [
+                    DataColumn(label: Text('xxxx')),
+                    DataColumn(label: Text('xxxx')),
+                  ],
+                  rows: params.map((param) {
+                    return DataRow(
+                    onSelectChanged: (selected) {
+                    if (selected == true) {
+                      //Navigator.push(
+                        //context,
+                        //MaterialPageRoute(
+                          //builder: (context) => SubnetDetailScreen(node: node),
+                        //),
+                      //);
+                    }
+                  },
+                      cells: [
+                        DataCell(Text(param.)),
+                        DataCell(Text(param.node.toString())),
+                      ],
+                    );
+                  }).toList(),
+                  ),
+                  ),
+                )
+              );
+            }
+
+            // 4. If the list is empty
+            return const Center(child: Text('No parameters found.'));
+          },
+        ));
   }
 }

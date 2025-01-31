@@ -4,20 +4,18 @@ import 'dart:convert';
 import 'dart:io';
 
 Future<List<Node>> fetchNodes() async {
-
-  await Future.delayed(const Duration(seconds: 1));
   final response = await http.get(
     Uri.parse('https://raw.githubusercontent.com/edvardxyz/tp/refs/heads/master/app/apitest/node'),
     // Send authorization headers to the backend.
-    headers: {
-      HttpHeaders.authorizationHeader: 'Basic your_api_token_here',
-    },
+    // headers: {
+    //   HttpHeaders.authorizationHeader: 'Basic your_api_token_here',
+    // },
   );
   if(response.statusCode == 200){
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((json) => Node.fromJson(json)).toList();
   } else {
-    throw Exception('Failed to load users');
+    throw Exception('Failed to load node');
   }
 }
 
@@ -38,7 +36,7 @@ class Node {
     return switch (json) {
       {
         'id': int id,
-        'hostname': String name,
+        'hostname': String hostname,
         'node': int node,
         'created': int created,
       } =>
@@ -48,7 +46,7 @@ class Node {
           node: node,
           created: created,
         ),
-      _ => throw const FormatException('Failed to load album.'),
+      _ => throw const FormatException('Failed to load node.'),
     };
   }
 }
