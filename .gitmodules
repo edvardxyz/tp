@@ -1,0 +1,6 @@
+[submodule "c-web-api/lib/csp"]
+	path = c-web-api/lib/csp
+	url = https://github.com/spaceinventor/libcsp.git
+[submodule "c-web-api/lib/param"]
+	path = c-web-api/lib/param
+	url = https://github.com/spaceinventor/libparam.git
