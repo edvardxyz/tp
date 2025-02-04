@@ -10,6 +10,7 @@
 // #include "token.h"
 #include "subnet.h"
 #include "node.h"
+#include "param.h"
 #include "db.h"
 #include "sniffer.h"
 
@@ -60,15 +61,20 @@ int main(int argc, char ** argv) {
 
 	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/subnets", 0, &callback_get_subnets, NULL);
 	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/nodes", 0, &callback_get_nodes, NULL);
+	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/param", 0, &callback_get_params, NULL);
 	// ulfius_add_endpoint_by_val(&instance, "POST", NULL, NULL, 0, &callback_post_test, NULL);
 
 	ulfius_set_default_endpoint(&instance, &callback_default, NULL);
 
 	ret = init_db();
-
-
 	if (ret) {
 		y_log_message(Y_LOG_LEVEL_ERROR, "Error opening db");
+		return 1;
+	}
+
+	ret = param_list_init();
+	if (ret) {
+		y_log_message(Y_LOG_LEVEL_ERROR, "Error loading param list");
 		return 1;
 	}
 

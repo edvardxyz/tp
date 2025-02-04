@@ -33,6 +33,7 @@ executable('c-api',
     'src/subnet.c',
     'src/node.c',
     'src/sniffer.c',
+    'src/param.c',
     #'src/token.c',
   ],
   dependencies: [ulfius_dep, sqlite_dep, jwt_dep, jansson_dep, csp_dep, param_dep, zmq_dep]

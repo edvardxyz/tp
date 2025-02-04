@@ -21,7 +21,8 @@ CREATE TABLE param (
 	mask INTEGER,
 	vmem INTEGER,
 	type INTEGER NOT NULL,
-	created INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+	created INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+	UNIQUE (param_id, name)
 );
 
 CREATE TABLE param_node (
@@ -38,6 +39,7 @@ CREATE TABLE param_int (
 	value INTEGER NOT NULL,
 	idx INTEGER NOT NULL,
 	param_node_id INTEGER NOT NULL,
+	time_sec INTEGER NOT NULL,
 	created INTEGER NOT NULL DEFAULT (strftime('%s','now')),
 	FOREIGN KEY(param_node_id) REFERENCES param_node(id)
 );
@@ -47,6 +49,7 @@ CREATE TABLE param_real (
 	value REAL NOT NULL,
 	idx INTEGER NOT NULL,
 	param_node_id INTEGER NOT NULL,
+	time_sec INTEGER NOT NULL,
 	created INTEGER NOT NULL DEFAULT (strftime('%s','now')),
 	FOREIGN KEY(param_node_id) REFERENCES param_node(id)
 );
@@ -67,3 +70,8 @@ CREATE TABLE contact (
 	FOREIGN KEY(node_to_id) REFERENCES node(id),
 	FOREIGN KEY(node_from_id) REFERENCES node(id)
 );
+
+CREATE INDEX idx_param_node_param ON param_node(param_id);
+CREATE INDEX idx_param_node_node ON param_node(node_id);
+CREATE INDEX idx_param_int_param_node ON param_int(param_node_id);
+CREATE INDEX idx_param_real_param_node ON param_real(param_node_id);
