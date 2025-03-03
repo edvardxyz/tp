@@ -197,7 +197,7 @@ class _SubnetDetailScreenState extends State<SubnetDetailScreen> {
                     }
                   },
                       cells: [
-                        DataCell(Text(node.hostname)),
+                        DataCell(Text(node.name)),
                         DataCell(Text(node.node.toString())),
                       ],
                     );
@@ -233,14 +233,14 @@ class _NodeDetailScreenState extends State<NodeDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _futureParams = fetchParams();
+    _futureParams = fetchParams(widget.node);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: Text('Parameters for ${widget.node.hostname}'),
+          title: Text('Parameters for ${widget.node.name}'),
         ),
         body: FutureBuilder<List<Param>>(
           future: _futureParams,

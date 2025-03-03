@@ -2,10 +2,11 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:app/node.dart';
 
-Future<List<Param>> fetchParams() async {
+Future<List<Param>> fetchParams(Node node) async {
   final response = await http.get(
-    Uri.parse('https://raw.githubusercontent.com/edvardxyz/tp/refs/heads/master/app/apitest/param'),
+    Uri.parse('http://localhost:8888/param/${node.node}'),
     // Send authorization headers to the backend.
     // headers: {
     //   HttpHeaders.authorizationHeader: 'Basic your_api_token_here',

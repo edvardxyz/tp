@@ -5,7 +5,7 @@ import 'dart:io';
 
 Future<List<Subnet>> fetchSubnets() async {
   final response = await http.get(
-    Uri.parse('https://raw.githubusercontent.com/edvardxyz/tp/refs/heads/master/app/apitest/subnet'),
+    Uri.parse('http://localhost:8888/subnet'),
     // Send authorization headers to the backend.
     // headers: {
     //   HttpHeaders.authorizationHeader: 'Basic your_api_token_here',

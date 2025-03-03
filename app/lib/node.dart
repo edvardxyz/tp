@@ -5,7 +5,7 @@ import 'dart:io';
 
 Future<List<Node>> fetchNodes() async {
   final response = await http.get(
-    Uri.parse('https://raw.githubusercontent.com/edvardxyz/tp/refs/heads/master/app/apitest/node'),
+    Uri.parse('http://localhost:8888/node'),
     // Send authorization headers to the backend.
     // headers: {
     //   HttpHeaders.authorizationHeader: 'Basic your_api_token_here',
@@ -20,31 +20,23 @@ Future<List<Node>> fetchNodes() async {
 }
 
 class Node {
-  final int id;
-  final String hostname;
+  final String name;
   final int node;
-  final int created;
 
   const Node({
-    required this.id,
-    required this.hostname,
+    required this.name,
     required this.node,
-    required this.created
   });
 
   factory Node.fromJson(Map<String, dynamic> json) {
     return switch (json) {
       {
-        'id': int id,
-        'hostname': String hostname,
+        'name': String name,
         'node': int node,
-        'created': int created,
       } =>
         Node(
-          id: id,
-          hostname: hostname,
+          name: name,
           node: node,
-          created: created,
         ),
       _ => throw const FormatException('Failed to load node.'),
     };
