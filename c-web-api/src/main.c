@@ -7,12 +7,13 @@
 #include <ulfius.h>
 
 #define PORT 8888
-// #include "token.h"
+#include "auth.h"
 #include "subnet.h"
 #include "node.h"
 #include "param.h"
 #include "db.h"
 #include "sniffer.h"
+#include "contact.h"
 
 static char * read_file(const char * filename) {
 	char * buffer = NULL;
@@ -44,6 +45,27 @@ int callback_default(const struct _u_request * request, struct _u_response * res
 	return U_CALLBACK_CONTINUE;
 }
 
+// create fucntion to add endpoint with a auth endpint with higher priority 
+int ulfius_add_endpoint_by_val_auth(struct _u_instance * u_instance,
+                               const char * http_method,
+                               const char * url_prefix,
+                               const char * url_format,
+                               unsigned int priority,
+                               int (* callback_function)(const struct _u_request * request, // Input parameters (set by the framework)
+                                                         struct _u_response * response,     // Output parameters (set by the user)
+                                                         void * user_data),
+                               void * user_data){
+
+	if(priority == 0){
+		y_log_message(Y_LOG_LEVEL_ERROR, "Priority 0 is reserved for default endpoint");
+		exit(1);
+	}
+	ulfius_add_endpoint_by_val(u_instance, http_method, url_prefix, url_format, priority, callback_function, user_data);
+	ulfius_add_endpoint_by_val(u_instance, http_method, url_prefix, url_format, 0, &callback_auth, user_data);
+
+	return 0;
+}
+
 int main(int argc, char ** argv) {
 	int ret;
 
@@ -58,13 +80,24 @@ int main(int argc, char ** argv) {
 	}
 
 	u_map_put(instance.default_headers, "Access-Control-Allow-Origin", "*");
-
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/subnets", 0, &callback_get_subnets, NULL);
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/nodes", 0, &callback_get_nodes, NULL);
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/param", 0, &callback_get_params, NULL);
-	// ulfius_add_endpoint_by_val(&instance, "POST", NULL, NULL, 0, &callback_post_test, NULL);
-
 	ulfius_set_default_endpoint(&instance, &callback_default, NULL);
+
+	ulfius_add_endpoint_by_val(&instance, "POST", NULL, "/login", 1, &callback_login, NULL);
+	ulfius_add_endpoint_by_val(&instance, "POST", NULL, "/register", 1, &callback_create_user, NULL);
+	ulfius_add_endpoint_by_val(&instance, "POST", NULL, "/refresh", 1, &callback_refresh, NULL);
+
+	// Auth required endpoints below 
+	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/subnet", 1, &callback_get_subnets, NULL);
+	ulfius_add_endpoint_by_val(&instance, "POST", NULL, "/subnet", 1, &callback_post_subnets, NULL);
+	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/contact", 1, &callback_get_contacts, NULL);
+
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node", 1, &callback_get_nodes, NULL);
+	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node", 1, &callback_get_nodes, NULL);
+	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node/param", 1, &callback_get_params, NULL);
+	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node/param/:paramid", 1, &callback_get_params, NULL);
+	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node/param/:paramid/value/:limit", 1, &callback_get_values, NULL);
+	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node/param/:paramid/value/:limit/:from/:to", 1, &callback_get_values, NULL);
+
 
 	ret = init_db();
 	if (ret) {
@@ -78,7 +111,7 @@ int main(int argc, char ** argv) {
 		return 1;
 	}
 
-	ret = param_sniffer_init();
+	ret = param_sniffer_init(60, "localhost");
 	if (ret) {
 		y_log_message(Y_LOG_LEVEL_ERROR, "Error opening starting sniffer");
 		return 1;
@@ -89,6 +122,7 @@ int main(int argc, char ** argv) {
 		// If command-line options are -secure <key_file> <cert_file>, then open an https connection
 		char *key_pem = read_file(argv[2]), *cert_pem = read_file(argv[3]);
 		ret = ulfius_start_secure_framework(&instance, key_pem, cert_pem);
+		printf("HTTPS secure started\n");
 		o_free(key_pem);
 		o_free(cert_pem);
 	} else {
