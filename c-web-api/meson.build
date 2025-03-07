@@ -18,6 +18,9 @@ project('c-api', 'c',
   ]
 )
 
+libbcrypt_proj = subproject('libbcrypt')
+libbcrypt_dep = libbcrypt_proj.get_variable('libbcrypt_dep')
+
 zmq_dep = dependency('libzmq', required: true)
 jansson_dep = dependency('jansson', required: true)
 ulfius_dep = dependency('libulfius', required: true)
@@ -25,6 +28,7 @@ sqlite_dep = dependency('sqlite3', required: true)
 jwt_dep = dependency('libjwt', required: true)
 csp_dep = dependency('csp', fallback: ['csp', 'csp_dep'], required: true)
 param_dep = dependency('param', fallback: ['param', 'param_dep'], required: true)
+
 
 executable('c-api',
   [
@@ -34,8 +38,9 @@ executable('c-api',
     'src/node.c',
     'src/sniffer.c',
     'src/param.c',
-    #'src/token.c',
+    'src/contact.c',
+    'src/auth.c',
   ],
-  dependencies: [ulfius_dep, sqlite_dep, jwt_dep, jansson_dep, csp_dep, param_dep, zmq_dep]
+  dependencies: [ulfius_dep, sqlite_dep, jwt_dep, jansson_dep, csp_dep, param_dep, zmq_dep, libbcrypt_dep],
 )
 
