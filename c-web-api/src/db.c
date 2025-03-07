@@ -5,7 +5,7 @@
 #include <sqlite3.h>
 #include <jansson.h>
 
-#define DB_PATH "../database.db"
+#define DB_PATH "./database.db"
 sqlite3 * db = NULL;
 
 int init_db() {
