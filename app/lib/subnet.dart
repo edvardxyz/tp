@@ -1,7 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 Future<List<Subnet>> fetchSubnets() async {
   final response = await http.get(

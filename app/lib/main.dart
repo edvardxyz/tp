@@ -5,6 +5,8 @@ import 'package:app/subnet.dart';
 import 'package:app/node.dart';
 import 'package:app/param.dart';
 
+
+
 void main() {
   runApp(const MyApp());
 }
@@ -18,21 +20,6 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurpleAccent),
         useMaterial3: true,
       ),
@@ -68,72 +55,73 @@ class _MyHomePageState extends State<MyHomePage> {
     _futureSubnets = fetchSubnets();
   }
 
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(
-      title: const Text('Subnets'),
-    ),
-    body: FutureBuilder<List<Subnet>>(
-      future: _futureSubnets,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          final subnets = snapshot.data!;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Subnets'),
+      ),
+      body: FutureBuilder<List<Subnet>>(
+        future: _futureSubnets,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+            final subnets = snapshot.data!;
 
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal, // Allows horizontal scroll if needed
-            child: SizedBox(
-              width: MediaQuery.of(context).size.width,
+            return SingleChildScrollView(
+                scrollDirection:
+                    Axis.horizontal, // Allows horizontal scroll if needed
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width,
+                  child: DataTable(
+                    showCheckboxColumn: false,
+                    columns: const [
+                      DataColumn(label: Text('Name')),
+                      DataColumn(label: Text('Subnet')),
+                    ],
+                    rows: subnets.map((subnet) {
+                      return DataRow(
+                        onSelectChanged: (selected) {
+                          if (selected == true) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    SubnetDetailScreen(subnet: subnet),
+                              ),
+                            );
+                          }
+                        },
+                        cells: [
+                          DataCell(Text(subnet.name)),
+                          DataCell(Text(
+                              '${subnet.node.toString()} / ${subnet.mask.toString()}')),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ));
+          }
 
-            child: DataTable(
-              showCheckboxColumn: false,
-              columns: const [
-                DataColumn(label: Text('Name')),
-                DataColumn(label: Text('Subnet')),
-              ],
-              rows: subnets.map((subnet) {
-                return DataRow(
-                onSelectChanged: (selected) {
-                if (selected == true) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SubnetDetailScreen(subnet: subnet),
-                    ),
-                  );
-                }
-              },
-                  cells: [
-                    DataCell(Text(subnet.name)),
-                    DataCell(Text('${subnet.node.toString()} / ${subnet.mask.toString()}')),
-                  ],
-                );
-              }).toList(),
-              ),
-            )
-          );
-        }
-
-        return const Center(child: Text('No subnets found.'));
-      },
-    ),
-  );
-}
+          return const Center(child: Text('No subnets found.'));
+        },
+      ),
+    );
+  }
 }
 
 class SubnetDetailScreen extends StatefulWidget {
   final Subnet subnet;
 
   const SubnetDetailScreen({
-    Key? key,
+    super.key,
     required this.subnet,
-  }) : super(key: key);
+  });
 
   @override
   State<SubnetDetailScreen> createState() => _SubnetDetailScreenState();
@@ -145,7 +133,7 @@ class _SubnetDetailScreenState extends State<SubnetDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _futureNodes = fetchNodes();
+    _futureNodes = fetchNodes(widget.subnet);
   }
 
   @override
@@ -173,39 +161,40 @@ class _SubnetDetailScreenState extends State<SubnetDetailScreen> {
             if (snapshot.hasData && snapshot.data!.isNotEmpty) {
               final nodes = snapshot.data!;
               return SingleChildScrollView(
-                scrollDirection: Axis.horizontal, // Allows horizontal scroll if needed
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: DataTable(
-                  showCheckboxColumn: false,
-                  columns: const [
-                    DataColumn(label: Text('Hostname')),
-                    DataColumn(label: Text('Node')),
-                  ],
-                  rows: nodes.map((node) {
-                    return DataRow(
-                    onSelectChanged: (selected) {
-                    if (selected == true) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => NodeDetailScreen(node: node),
-                        ),
-                      );
-                    }
-                  },
-                      cells: [
-                        DataCell(Text(node.name)),
-                        DataCell(Text(node.node.toString())),
-                      ],
-                    );
-                  }).toList(),
-                  ),
-                  ),
-                )
-              );
+                  scrollDirection:
+                      Axis.horizontal, // Allows horizontal scroll if needed
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: DataTable(
+                        showCheckboxColumn: false,
+                        columns: const [
+                          DataColumn(label: Text('Hostname')),
+                          DataColumn(label: Text('Node')),
+                        ],
+                        rows: nodes.map((node) {
+                          return DataRow(
+                            onSelectChanged: (selected) {
+                              if (selected == true) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        NodeDetailScreen(node: node),
+                                  ),
+                                );
+                              }
+                            },
+                            cells: [
+                              DataCell(Text(node.name)),
+                              DataCell(Text(node.node.toString())),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ));
             }
 
             // 4. If the list is empty
@@ -219,9 +208,9 @@ class NodeDetailScreen extends StatefulWidget {
   final Node node;
 
   const NodeDetailScreen({
-    Key? key,
+    super.key,
     required this.node,
-  }) : super(key: key);
+  });
 
   @override
   State<NodeDetailScreen> createState() => _NodeDetailScreenState();
@@ -233,7 +222,7 @@ class _NodeDetailScreenState extends State<NodeDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _futureParams = fetchParams(widget.node);
+    _futureParams = loadAndCombineParams(widget.node);
   }
 
   @override
@@ -261,41 +250,41 @@ class _NodeDetailScreenState extends State<NodeDetailScreen> {
             if (snapshot.hasData && snapshot.data!.isNotEmpty) {
               final params = snapshot.data!;
               return SingleChildScrollView(
-                scrollDirection: Axis.horizontal, // Allows horizontal scroll if needed
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: DataTable(
-                  showCheckboxColumn: false,
-                  columns: const [
-                    DataColumn(label: Text('Name')),
-                    DataColumn(label: Text('id')),
-                    DataColumn(label: Text('value')),
-                  ],
-                  rows: params.map((param) {
-                    return DataRow(
-                    onSelectChanged: (selected) {
-                    if (selected == true) {
-                      //Navigator.push(
-                        //context,
-                        //MaterialPageRoute(
-                          //builder: (context) => SubnetDetailScreen(node: node),
-                        //),
-                      //);
-                    }
-                  },
-                      cells: [
-                        DataCell(Text(param.name)),
-                        DataCell(Text(param.paramId.toString())),
-                        DataCell(Text(param.value.toString())),
-                      ],
-                    );
-                  }).toList(),
-                  ),
-                  ),
-                )
-              );
+                  scrollDirection:
+                      Axis.horizontal, // Allows horizontal scroll if needed
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: DataTable(
+                        showCheckboxColumn: false,
+                        columns: const [
+                          DataColumn(label: Text('Name')),
+                          DataColumn(label: Text('id')),
+                          DataColumn(label: Text('value')),
+                        ],
+                        rows: params.map((param) {
+                          return DataRow(
+                            onSelectChanged: (selected) {
+                              if (selected == true) {
+                                //Navigator.push(
+                                //context,
+                                //MaterialPageRoute(
+                                //builder: (context) => SubnetDetailScreen(node: node),
+                                //),
+                                //);
+                              }
+                            },
+                            cells: [
+                              DataCell(Text(param.name)),
+                              DataCell(Text(param.paramId.toString())),
+                              DataCell(Text(param.value.toString())),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ));
             }
 
             // 4. If the list is empty
