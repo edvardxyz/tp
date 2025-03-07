@@ -1,17 +1,25 @@
+#include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/time.h>
 #include <pthread.h>
+
 #include <param/param_server.h>
 #include <param/param_queue.h>
 #include <mpack/mpack.h>
+
 #include <csp/csp.h>
 #include <csp/csp_crc32.h>
+#include <csp/csp_cmp.h>
+#include <csp/csp_hooks.h>
 #include <csp/interfaces/csp_if_zmqhub.h>
-#include <stdio.h>
+
 #include <sqlite3.h>
+#include "csp/csp_types.h"
 #include "db.h"
 #include "param/param_list.h"
 
+int me = 0;
 pthread_t param_sniffer_thread;
 #define CURVE_KEYLEN 41
 
@@ -33,13 +41,11 @@ int param_sniffer_crc(csp_packet_t * packet) {
 	return 0;
 }
 
-int get_param_node_id(int external_param_id, int node_id, int * param_node_id) {
+int get_param_by_id_and_name(int param_id, const char * param_name, int * id) {
 	const char * sql =
-		"SELECT pn.id "
-		"FROM param_node pn "
-		"JOIN param p ON p.id = pn.param_id "
-		"WHERE p.param_id = ? AND pn.node_id = ?;";
-
+		"SELECT id "
+		"FROM param "
+		"WHERE param_id = ? AND name = ?;";
 	sqlite3_stmt * stmt = NULL;
 	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 	if (rc != SQLITE_OK) {
@@ -47,24 +53,74 @@ int get_param_node_id(int external_param_id, int node_id, int * param_node_id) {
 		return rc;
 	}
 
-	sqlite3_bind_int(stmt, 1, external_param_id);
-	sqlite3_bind_int(stmt, 2, node_id);
+	sqlite3_bind_int(stmt, 1, param_id);
+	sqlite3_bind_text(stmt, 2, param_name, -1, SQLITE_TRANSIENT);
 
 	rc = sqlite3_step(stmt);
 	if (rc == SQLITE_ROW) {
-		*param_node_id = sqlite3_column_int(stmt, 0);
+		*id = sqlite3_column_int(stmt, 0);
 		rc = SQLITE_OK;
 	} else {
-		fprintf(stderr, "No matching param_node found.\n");
+		printf("Parameter not found for param_id: %d, name: %s\n", param_id, param_name);
 		rc = SQLITE_NOTFOUND;
 	}
-
 	sqlite3_finalize(stmt);
 	return rc;
 }
 
-int param_sniffer_insert(int param_node_id, void * queue, param_t * param, int offset, void * reader, unsigned long timestamp) {
+int get_param_node_id(int param_param_id, const char * param_name, int node_id, int * out_id) {
+	static sqlite3_stmt * stmt = NULL;
+	const char * sql =
+		"SELECT pn.id "
+		"FROM param_node pn "
+		"JOIN param p ON p.id = pn.param_id "
+		"WHERE p.param_id = ? AND p.name = ? AND pn.node_id = ?;";
 
+	if (!stmt) {
+		int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+			return rc;
+		}
+	}
+
+	// Reset statement and clear previous bindings
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+
+	sqlite3_bind_int(stmt, 1, param_param_id);
+	sqlite3_bind_text(stmt, 2, param_name, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 3, node_id);
+
+	int rc = sqlite3_step(stmt);
+	if (rc == SQLITE_ROW) {
+		*out_id = sqlite3_column_int(stmt, 0);
+		return SQLITE_OK;
+	} else if (rc == SQLITE_DONE) {
+		fprintf(stderr, "No matching param_node record found.\n");
+		return SQLITE_NOTFOUND;
+	} else {
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
+		return rc;
+	}
+}
+int insert_batch_begin() {
+	int rc = sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "Failed to begin transaction: %s\n", sqlite3_errmsg(db));
+	}
+	return rc;
+}
+
+int insert_batch_end() {
+	int rc = sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "Failed to commit transaction: %s\n", sqlite3_errmsg(db));
+	}
+	return rc;
+}
+
+int param_sniffer_insert(void * queue, param_t * param, int offset, void * reader, unsigned long timestamp) {
 	if (offset < 0)
 		offset = 0;
 
@@ -83,10 +139,14 @@ int param_sniffer_insert(int param_node_id, void * queue, param_t * param, int o
 		time_sec = (uint64_t)tv.tv_sec;
 	}
 
-	for (int i = offset; i < offset + count; i++) {
-		int rc;
-		sqlite3_stmt * stmt = NULL;
+	int param_node_pk;
+	int rc = get_param_node_id(param->id, param->name, *param->node, &param_node_pk);
+	if (rc != SQLITE_OK) {
+		return rc;
+	}
 
+	int i = offset;
+	while (i < offset + count) {
 		switch (param->type) {
 			case PARAM_TYPE_UINT8:
 			case PARAM_TYPE_XINT8:
@@ -114,72 +174,60 @@ int param_sniffer_insert(int param_node_id, void * queue, param_t * param, int o
 					value = (sqlite3_int64)mpack_expect_i64(reader);
 				}
 
-				const char * sql = "INSERT INTO param_int (value, idx, param_node_id, time_sec) VALUES (?, ?, ?, ?);";
-				rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-				if (rc != SQLITE_OK) {
-					fprintf(stderr, "Failed to prepare param_int statement: %s\n", sqlite3_errmsg(db));
-					return rc;
+				// Reuse a static prepared statement for integer inserts
+				static sqlite3_stmt * stmt_int = NULL;
+				const char * sql_int =
+					"INSERT INTO param_int (value, idx, param_node_id, time_sec) VALUES (?, ?, ?, ?);";
+				if (!stmt_int) {
+					rc = sqlite3_prepare_v2(db, sql_int, -1, &stmt_int, NULL);
+					if (rc != SQLITE_OK) {
+						fprintf(stderr, "Failed to prepare param_int statement: %s\n", sqlite3_errmsg(db));
+						return rc;
+					}
 				}
+				sqlite3_reset(stmt_int);
+				sqlite3_clear_bindings(stmt_int);
 
-				sqlite3_bind_int64(stmt, 1, value);
-				sqlite3_bind_int(stmt, 2, i);
-				sqlite3_bind_int(stmt, 3, param_node_id);
-				sqlite3_bind_int64(stmt, 4, time_sec);
+				sqlite3_bind_int64(stmt_int, 1, value);
+				sqlite3_bind_int(stmt_int, 2, i);
+				sqlite3_bind_int(stmt_int, 3, param_node_pk);
+				sqlite3_bind_int64(stmt_int, 4, time_sec);
 
-				rc = sqlite3_step(stmt);
+				rc = sqlite3_step(stmt_int);
 				if (rc != SQLITE_DONE) {
 					fprintf(stderr, "Failed to execute param_int insert: %s\n", sqlite3_errmsg(db));
 				}
-				sqlite3_finalize(stmt);
 				break;
 			}
-
+			// For floating point types
+			case PARAM_TYPE_DOUBLE:
 			case PARAM_TYPE_FLOAT: {
-				float fvalue = mpack_expect_float(reader);
-				double value = (double)fvalue;
+				double value = mpack_expect_double(reader);  // mpack handles casting for floats
 
-				const char * sql = "INSERT INTO param_real (value, idx, param_node_id, time_sec) VALUES (?, ?, ?, ?);";
-				rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-				if (rc != SQLITE_OK) {
-					fprintf(stderr, "Failed to prepare param_real statement: %s\n", sqlite3_errmsg(db));
-					return rc;
+				static sqlite3_stmt * stmt_real = NULL;
+				const char * sql_real =
+					"INSERT INTO param_real (value, idx, param_node_id, time_sec) VALUES (?, ?, ?, ?);";
+				if (!stmt_real) {
+					rc = sqlite3_prepare_v2(db, sql_real, -1, &stmt_real, NULL);
+					if (rc != SQLITE_OK) {
+						fprintf(stderr, "Failed to prepare param_real statement: %s\n", sqlite3_errmsg(db));
+						return rc;
+					}
 				}
+				sqlite3_reset(stmt_real);
+				sqlite3_clear_bindings(stmt_real);
 
-				sqlite3_bind_double(stmt, 1, value);
-				sqlite3_bind_int(stmt, 2, i);
-				sqlite3_bind_int(stmt, 3, param_node_id);
-				sqlite3_bind_int64(stmt, 4, time_sec);
+				sqlite3_bind_double(stmt_real, 1, value);
+				sqlite3_bind_int(stmt_real, 2, i);
+				sqlite3_bind_int(stmt_real, 3, param_node_pk);
+				sqlite3_bind_int64(stmt_real, 4, time_sec);
 
-				rc = sqlite3_step(stmt);
+				rc = sqlite3_step(stmt_real);
 				if (rc != SQLITE_DONE) {
 					fprintf(stderr, "Failed to execute param_real insert: %s\n", sqlite3_errmsg(db));
 				}
-				sqlite3_finalize(stmt);
 				break;
 			}
-			case PARAM_TYPE_DOUBLE: {
-				double value = mpack_expect_double(reader);
-
-				const char * sql = "INSERT INTO param_real (value, idx, param_node_id, time_sec) VALUES (?, ?, ?, ?);";
-				rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-				if (rc != SQLITE_OK) {
-					fprintf(stderr, "Failed to prepare param_real statement: %s\n", sqlite3_errmsg(db));
-					return rc;
-				}
-
-				sqlite3_bind_double(stmt, 1, value);
-				sqlite3_bind_int(stmt, 2, i);
-				sqlite3_bind_int(stmt, 3, param_node_id);
-				sqlite3_bind_int64(stmt, 4, time_sec);
-
-				rc = sqlite3_step(stmt);
-				if (rc != SQLITE_DONE) {
-					fprintf(stderr, "Failed to execute param_real insert: %s\n", sqlite3_errmsg(db));
-				}
-				sqlite3_finalize(stmt);
-				break;
-			}
-
 			case PARAM_TYPE_STRING:
 			case PARAM_TYPE_DATA:
 			default:
@@ -191,71 +239,266 @@ int param_sniffer_insert(int param_node_id, void * queue, param_t * param, int o
 			fprintf(stderr, "mpack reader error: %d\n", mpack_reader_error(reader));
 			break;
 		}
+		i++;
 	}
 
 	return 0;
 }
 
-int get_param_by_id_and_name(int param_id, const char *param_name, int * id) {
-    const char *sql =
-        "SELECT id"
-        "FROM param "
-        "WHERE param_id = ? AND name = ?;";
-    sqlite3_stmt *stmt = NULL;
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-        return rc;
-    }
+int node_exists(int node, int * exists) {
+	const char * sql =
+		"SELECT 1 "
+		"FROM node n "
+		"WHERE n.node = ? LIMIT 1;";
 
-    sqlite3_bind_int(stmt, 1, param_id);
-    sqlite3_bind_text(stmt, 2, param_name, -1, SQLITE_TRANSIENT);
-
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        *id = sqlite3_column_int(stmt, 0);
-        rc = SQLITE_OK;
-    } else {
-        printf("Parameter not found for param_id: %d, name: %s\n", param_id, param_name);
-        rc = SQLITE_NOTFOUND;
-    }
-    sqlite3_finalize(stmt);
-    return rc;
-}
-
-int param_list_save_db(int node) {
-
-	param_t * param = NULL;
-	param_list_iterator i = {};
-	int rc;
-	sqlite3_stmt * stmt = NULL;
-	while ((param = param_list_iterate(&i)) != NULL) {
-		if (*param->node == 0 || *param->node == node) {
-			continue;
+	static sqlite3_stmt * stmt = NULL;
+	int rc = SQLITE_OK;
+	if (!stmt) {
+		rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+			return rc;
 		}
 	}
-	const char * sql = "INSERT INTO param_node () VALUES (?, ?, ?, ?);";
-	const char * sql = "INSERT INTO param () VALUES (?, ?, ?, ?);";
-	rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+
+	sqlite3_bind_int(stmt, 1, node);
+	sqlite3_changes(db);
+
+	rc = sqlite3_step(stmt);
+	if (rc == SQLITE_ROW) {
+		*exists = 1;
+	} else {
+		*exists = 0;
+	}
+
+	return SQLITE_OK;
+}
+
+int insert_node(int node, char * hostname) {
+	const char * sql = "INSERT INTO node (node, name) VALUES (?, ?);";
+
+	sqlite3_stmt * stmt = NULL;
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 	if (rc != SQLITE_OK) {
-		fprintf(stderr, "Failed to prepare param_int statement: %s\n", sqlite3_errmsg(db));
+		fprintf(stderr, "Failed to prepare node insert: %s\n", sqlite3_errmsg(db));
 		return rc;
 	}
 
-	/*
-	sqlite3_bind_int64(stmt, 1, value);
-	sqlite3_bind_int(stmt, 2, i);
-	sqlite3_bind_int(stmt, 3, param_node_id);
-	sqlite3_bind_int64(stmt, 4, time_sec);
-	*/
+	sqlite3_bind_int(stmt, 1, node);
+	sqlite3_bind_text(stmt, 2, hostname, strlen(hostname), NULL);
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_DONE) {
-		fprintf(stderr, "Failed to execute param_int insert: %s\n", sqlite3_errmsg(db));
+		fprintf(stderr, "Failed to execute node insert: %s\n", sqlite3_errmsg(db));
 	}
+
 	sqlite3_finalize(stmt);
+	return rc;
+}
+
+int insert_param_node(int param_pk, int node_id) {
+	const char * sql = "INSERT OR IGNORE INTO param_node (param_id, node_id) VALUES (?, ?);";
+
+	sqlite3_stmt * stmt = NULL;
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "Failed to prepare param_node insert: %s\n", sqlite3_errmsg(db));
+		return rc;
+	}
+
+	sqlite3_bind_int(stmt, 1, param_pk);
+	sqlite3_bind_int(stmt, 2, node_id);
+
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_DONE) {
+		fprintf(stderr, "Failed to execute param_node insert: %s\n", sqlite3_errmsg(db));
+	}
+
+	sqlite3_finalize(stmt);
+	return rc;
+}
+
+int param_list_save_db(int node) {
+	param_t * param = NULL;
+	param_list_iterator iter = {};
+	int rc;
+	int param_pk;
+	sqlite3_stmt * stmt = NULL;
+
+	while ((param = param_list_iterate(&iter)) != NULL) {
+		if (*param->node == 0) {
+			continue;
+		}
+
+		// does param already exists based on name and param_id?
+		rc = get_param_by_id_and_name(param->id, param->name, &param_pk);
+		if (rc == SQLITE_OK) {
+			// link this node to the found param, ignored if already present
+			rc = insert_param_node(param_pk, *param->node);
+			continue;
+		}
+
+		// create param
+		const char * sql_param =
+			"INSERT INTO param (param_id, name, size, mask, vmem, type) "
+			"VALUES (?, ?, ?, ?, ?, ?);";
+		rc = sqlite3_prepare_v2(db, sql_param, -1, &stmt, NULL);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "Failed to prepare param insert: %s\n", sqlite3_errmsg(db));
+			continue;
+		}
+
+		sqlite3_bind_int(stmt, 1, param->id);
+		sqlite3_bind_text(stmt, 2, param->name, -1, SQLITE_STATIC);
+		sqlite3_bind_int(stmt, 3, param->array_size);
+		sqlite3_bind_int(stmt, 4, param->mask);
+		sqlite3_bind_int(stmt, 5, param->vmem->type);
+		sqlite3_bind_int(stmt, 6, param->type);
+
+		rc = sqlite3_step(stmt);
+		if (rc != SQLITE_DONE) {
+			fprintf(stderr, "Failed to insert param: %s\n", sqlite3_errmsg(db));
+			sqlite3_finalize(stmt);
+			continue;
+		}
+		sqlite3_finalize(stmt);
+		stmt = NULL;
+
+		// retrieve the auto-generated primary key from the param table.
+		sqlite3_int64 inserted_param_pk = sqlite3_last_insert_rowid(db);
+
+		rc = insert_param_node(inserted_param_pk, *param->node);
+	}
 
 	return 0;
+}
+
+static int ident(int node, char * hostname) {
+
+	csp_conn_t * conn = csp_connect(CSP_PRIO_NORM, node, CSP_CMP, 1000, CSP_O_CRC32);
+	if (conn == NULL) {
+		return -1;
+	}
+
+	csp_packet_t * packet = csp_buffer_get(0);
+	if (packet == NULL) {
+		csp_close(conn);
+		return -1;
+	}
+
+	struct csp_cmp_message * msg = (struct csp_cmp_message *)packet->data;
+	int size = sizeof(msg->type) + sizeof(msg->code) + sizeof(msg->ident);
+	msg->type = CSP_CMP_REQUEST;
+	msg->code = CSP_CMP_IDENT;
+	packet->length = size;
+
+	csp_send(conn, packet);
+	int found = 0;
+
+	while ((packet = csp_read(conn, 1500)) != NULL) {
+		msg = (struct csp_cmp_message *)packet->data;
+		if (msg->code == CSP_CMP_IDENT) {
+			strncpy(hostname, msg->ident.hostname, CSP_HOSTNAME_LEN - 1);
+			found = 1;
+			csp_buffer_free(packet);
+			break;
+		}
+		csp_buffer_free(packet);
+	}
+	csp_close(conn);
+	if (found) {
+		return 0;
+	} else {
+		printf("ident timeout\n");
+		return -2;
+	}
+}
+
+// This function upserts a contact row.
+// If a row for the given (node_to, node_from) exists, it updates time_sec.
+// Otherwise, it inserts a new row.
+int upsert_contact(int node_to, int node_from, uint64_t time_sec) {
+	static sqlite3_stmt * stmt_sel = NULL;
+	int rc;
+	int contact_id = -1;
+
+	// First, check if a contact row already exists for this node pair.
+	const char * select_sql =
+		"SELECT id FROM contact WHERE node_to_id = ? AND node_from_id = ?;";
+	if (!stmt_sel) {
+		rc = sqlite3_prepare_v2(db, select_sql, -1, &stmt_sel, NULL);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "Failed to prepare SELECT statement: %s\n", sqlite3_errmsg(db));
+			return rc;
+		}
+	}
+
+	sqlite3_reset(stmt_sel);
+	sqlite3_clear_bindings(stmt_sel);
+
+	sqlite3_bind_int(stmt_sel, 1, node_to);
+	sqlite3_bind_int(stmt_sel, 2, node_from);
+
+	rc = sqlite3_step(stmt_sel);
+	if (rc == SQLITE_ROW) {
+		// Found an existing row.
+		contact_id = sqlite3_column_int(stmt_sel, 0);
+	}
+
+	if (contact_id != -1) {
+		// Update the time_sec field in the existing row.
+		static sqlite3_stmt * stmt_up = NULL;
+		const char * update_sql =
+			"UPDATE contact SET time_sec = ? WHERE id = ?;";
+		if (!stmt_up) {
+			rc = sqlite3_prepare_v2(db, update_sql, -1, &stmt_up, NULL);
+			if (rc != SQLITE_OK) {
+				fprintf(stderr, "Failed to prepare UPDATE statement: %s\n", sqlite3_errmsg(db));
+				return rc;
+			}
+		}
+
+		sqlite3_reset(stmt_up);
+		sqlite3_clear_bindings(stmt_up);
+
+		sqlite3_bind_int(stmt_up, 1, time_sec);
+		sqlite3_bind_int(stmt_up, 2, contact_id);
+
+		rc = sqlite3_step(stmt_up);
+		if (rc != SQLITE_DONE) {
+			fprintf(stderr, "Failed to update contact: %s\n", sqlite3_errmsg(db));
+			return rc;
+		}
+	} else {
+		// Insert a new row for this node pair.
+		const char * insert_sql =
+			"INSERT INTO contact (node_to_id, node_from_id, time_sec) VALUES (?, ?, ?);";
+		static sqlite3_stmt * stmt = NULL;
+		if(!stmt) {
+			rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, NULL);
+			if (rc != SQLITE_OK) {
+				fprintf(stderr, "Failed to prepare INSERT statement: %s\n", sqlite3_errmsg(db));
+				return rc;
+			}
+		}
+
+		sqlite3_reset(stmt);
+		sqlite3_clear_bindings(stmt);
+
+		sqlite3_bind_int(stmt, 1, node_to);
+		sqlite3_bind_int(stmt, 2, node_from);
+		sqlite3_bind_int(stmt, 3, time_sec);
+
+		rc = sqlite3_step(stmt);
+		if (rc != SQLITE_DONE) {
+			fprintf(stderr, "Failed to insert contact: %s\n", sqlite3_errmsg(db));
+			return rc;
+		}
+	}
+
+	return SQLITE_OK;
 }
 
 static void * param_sniffer(void * param) {
@@ -263,19 +506,40 @@ static void * param_sniffer(void * param) {
 	while (1) {
 		csp_packet_t * packet = csp_promisc_read(CSP_MAX_DELAY);
 
-		/*
+		/* TODO implement house keeping
 		if(hk_param_sniffer(packet)){
 			csp_buffer_free(packet);
 			continue;
 		}
 		*/
-
-		if (packet->id.sport != PARAM_PORT_SERVER) {
+		if (param_sniffer_crc(packet) < 0) {
 			csp_buffer_free(packet);
 			continue;
 		}
 
-		if (param_sniffer_crc(packet) < 0) {
+		int dst = packet->id.dst;
+		int src = packet->id.src;
+		if (src == me || dst == me) {
+			csp_buffer_free(packet);
+			continue;
+		}
+
+		int exists = 0;
+		node_exists(packet->id.src, &exists);
+		if (!exists) {
+			// ident
+			char hostname[CSP_HOSTNAME_LEN];
+			if (ident(src, hostname) == 0) {
+				insert_node(src, hostname);
+			}
+		}
+
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		long time_sec = tv.tv_sec;
+		upsert_contact(dst, src, time_sec);
+
+		if (packet->id.sport != PARAM_PORT_SERVER) {
 			csp_buffer_free(packet);
 			continue;
 		}
@@ -300,39 +564,49 @@ static void * param_sniffer(void * param) {
 		mpack_reader_t reader;
 		mpack_reader_init_data(&reader, queue.buffer, queue.used);
 
+		insert_batch_begin();
 		while (reader.data < reader.end) {
 			int id, node, offset = -1;
 			long unsigned int timestamp = 0;
+			param_t * param = NULL;
 			param_deserialize_id(&reader, &id, &node, &timestamp, &offset, &queue);
 			if (node == 0) {
 				node = packet->id.src;
-			}
-			int param_node_id;
-			int res = get_param_node_id(id, node, &param_node_id);  // TODO is this slow?
-			if (res == SQLITE_NOTFOUND) {
-				printf("DB failed param_node_id lookup node %d id %d\n", node, id);
-				param_list_download(node, 3000, 3, 0);
-				// TODO list save into db
-				continue;
 			}
 			/* If parameter timestamp is not inside the header, and the lower layer found a timestamp*/
 			if ((timestamp == 0) && (packet->timestamp_rx != 0)) {
 				timestamp = packet->timestamp_rx;
 			}
-			param_t * param = param_list_find_id(node, id);
-			if (param) {
-				param_sniffer_insert(param_node_id, &queue, param, offset, &reader, timestamp);
-			} else {
-				printf("Found unknown param node %d id %d\n", node, id);
-				break;
+
+			int retries = 0;
+			const int max_retries = 1;
+
+			while (retries <= max_retries) {
+				param = param_list_find_id(node, id);
+				if (param) {
+					param_sniffer_insert(&queue, param, offset, &reader, timestamp);
+					break;
+				} else {
+					if (retries == 0) {
+						printf("Found unknown param node %d id %d\n", node, id);
+						param_list_download(node, 2000, 3, 0);
+						param_list_save_db(node);
+					}
+					retries++;
+					if (retries > max_retries) {
+						mpack_discard(&reader);
+						break;
+					}
+				}
 			}
 		}
+		insert_batch_end();
 		csp_buffer_free(packet);
 	}
 	return NULL;
 }
 
-static int csp_ifadd_zmq() {
+static int csp_ifadd_zmq(int node, char * host) {
 
 	static int ifidx = 0;
 
@@ -346,8 +620,9 @@ static int csp_ifadd_zmq() {
 	char * sec_key = NULL;
 	unsigned int subport = 6000;
 	unsigned int pubport = 7000;
-	char * server = "localhost";
-	unsigned int addr = 1;
+	char * server = strdup(host);
+	unsigned int addr = node;
+	me = node;
 
 	if (subport == 0) {
 		subport = CSP_ZMQPROXY_SUBSCRIBE_PORT + ((key_file == NULL) ? 0 : 1);
@@ -417,7 +692,7 @@ void * router_task(void * param) {
 	}
 }
 
-int param_sniffer_init() {
+int param_sniffer_init(int node, char * host) {
 
 	csp_conf.hostname = "SqliteSniffer";
 	csp_conf.model = "";
@@ -433,7 +708,7 @@ int param_sniffer_init() {
 	pthread_create(&router_handle, NULL, &router_task, NULL);
 
 	// TODO take args
-	int res = csp_ifadd_zmq();
+	int res = csp_ifadd_zmq(node, host);
 
 	pthread_create(&param_sniffer_thread, NULL, &param_sniffer, NULL);
 
