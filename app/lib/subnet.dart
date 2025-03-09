@@ -2,15 +2,17 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 
-Future<List<Subnet>> fetchSubnets() async {
-  final response = await http.get(
-    Uri.parse('http://localhost:8888/subnet'),
-    // Send authorization headers to the backend.
-    // headers: {
-    //   HttpHeaders.authorizationHeader: 'Basic your_api_token_here',
-    // },
+import 'package:app/tokenhttp.dart';
+
+ Future<List<Subnet>> fetchSubnets() async {
+  final response = await performAuthenticatedRequest(
+    (headers) => http.get(
+      Uri.parse('http://localhost:8888/subnet'),
+      headers: headers,
+    ),
   );
-  if(response.statusCode == 200){
+
+  if (response.statusCode == 200) {
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((json) => Subnet.fromJson(json)).toList();
   } else {

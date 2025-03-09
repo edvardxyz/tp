@@ -5,7 +5,9 @@ import 'package:app/subnet.dart';
 import 'package:app/node.dart';
 import 'package:app/param.dart';
 
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,11 +21,224 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurpleAccent),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: DefaultTabController(
+        length: 2, 
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Login & Register'),
+            bottom: const TabBar(
+              tabs: [
+                Tab(text: 'Login'),
+                Tab(text: 'Register'),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            children: [
+              LoginScreen(),
+              RegisterScreen(),
+            ],
+          ),
+        ),
+        ),
+    );
+  }
+}
+
+class LoginScreen extends StatelessWidget {
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
+
+  Future<void> loginUser(BuildContext context) async {
+    final String username = usernameController.text;
+    final String password = passwordController.text;
+
+    final Uri url = Uri.parse('http://localhost:8888/login');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(<String, String>{
+          'username': username,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('User login successfully!');
+
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final String token = responseData['token'];
+        final String refreshToken = responseData['refreshToken'];
+
+        await secureStorage.write(key: 'token', value: token);
+        await secureStorage.write(key: 'refreshToken', value: refreshToken);
+
+        if(context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('User login successfully!'),
+            ),
+          );
+
+        // Navigate to the subnet window (MyHomePage)
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => MyHomePage(title: 'Subnets')),
+        );
+
+        }
+
+      } else {
+        print('Login failed with status: ${response.statusCode}');
+        if(context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Login failed! ${response.body}'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('An error occurred: $e');
+      if(context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An error occurred: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Card(
+        margin: EdgeInsets.all(20.0),
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextField(
+                controller: usernameController,
+                decoration: InputDecoration(labelText: 'Username'),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                controller: passwordController,
+                decoration: InputDecoration(labelText: 'Password'),
+                obscureText: true,
+              ),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  loginUser(context);
+                },
+                child: Text('Login'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RegisterScreen extends StatelessWidget {
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  Future<void> registerUser(BuildContext context) async {
+    final String username = usernameController.text;
+    final String password = passwordController.text;
+
+    final Uri url = Uri.parse('http://localhost:8888/register');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(<String, String>{
+          'username': username,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('User registered successfully!');
+        if(context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('User registered successfully!'),
+            ),
+          );
+        }
+      } else {
+        print('Registration failed with status: ${response.statusCode}');
+        if(context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Registration failed! ${response.body}'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('An error occurred: $e');
+      if(context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An error occurred: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Card(
+        margin: EdgeInsets.all(20.0),
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextField(
+                controller: usernameController,
+                decoration: InputDecoration(labelText: 'Username'),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                controller: passwordController,
+                decoration: InputDecoration(labelText: 'Password'),
+                obscureText: true,
+              ),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  registerUser(context);
+                },
+                child: Text('Signup'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
