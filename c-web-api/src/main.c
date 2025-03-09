@@ -45,18 +45,18 @@ int callback_default(const struct _u_request * request, struct _u_response * res
 	return U_CALLBACK_CONTINUE;
 }
 
-// create fucntion to add endpoint with a auth endpint with higher priority 
+// create fucntion to add endpoint with a auth endpint with higher priority
 int ulfius_add_endpoint_by_val_auth(struct _u_instance * u_instance,
-                               const char * http_method,
-                               const char * url_prefix,
-                               const char * url_format,
-                               unsigned int priority,
-                               int (* callback_function)(const struct _u_request * request, // Input parameters (set by the framework)
-                                                         struct _u_response * response,     // Output parameters (set by the user)
-                                                         void * user_data),
-                               void * user_data){
+									const char * http_method,
+									const char * url_prefix,
+									const char * url_format,
+									unsigned int priority,
+									int (*callback_function)(const struct _u_request * request,  // Input parameters (set by the framework)
+															 struct _u_response * response,      // Output parameters (set by the user)
+															 void * user_data),
+									void * user_data) {
 
-	if(priority == 0){
+	if (priority == 0) {
 		y_log_message(Y_LOG_LEVEL_ERROR, "Priority 0 is reserved for default endpoint");
 		exit(1);
 	}
@@ -64,6 +64,13 @@ int ulfius_add_endpoint_by_val_auth(struct _u_instance * u_instance,
 	ulfius_add_endpoint_by_val(u_instance, http_method, url_prefix, url_format, 0, &callback_auth, user_data);
 
 	return 0;
+}
+
+int callback_options (const struct _u_request * request, struct _u_response * response, void * user_data) {
+  u_map_put(response->map_header, "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  u_map_put(response->map_header, "Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Bearer, Authorization");
+  u_map_put(response->map_header, "Access-Control-Max-Age", "1800");
+  return U_CALLBACK_COMPLETE;
 }
 
 int main(int argc, char ** argv) {
@@ -80,24 +87,25 @@ int main(int argc, char ** argv) {
 	}
 
 	u_map_put(instance.default_headers, "Access-Control-Allow-Origin", "*");
-	ulfius_set_default_endpoint(&instance, &callback_default, NULL);
+	ulfius_add_endpoint_by_val(&instance, "OPTIONS", NULL, "*", 0, &callback_options, NULL);
 
 	ulfius_add_endpoint_by_val(&instance, "POST", NULL, "/login", 1, &callback_login, NULL);
 	ulfius_add_endpoint_by_val(&instance, "POST", NULL, "/register", 1, &callback_create_user, NULL);
 	ulfius_add_endpoint_by_val(&instance, "POST", NULL, "/refresh", 1, &callback_refresh, NULL);
 
-	// Auth required endpoints below 
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/subnet", 1, &callback_get_subnets, NULL);
-	ulfius_add_endpoint_by_val(&instance, "POST", NULL, "/subnet", 1, &callback_post_subnets, NULL);
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/contact", 1, &callback_get_contacts, NULL);
+	// Auth required endpoints below
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/subnet", 1, &callback_get_subnets, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "POST", NULL, "/subnet", 1, &callback_post_subnets, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/contact", 1, &callback_get_contacts, NULL);
 
 	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node", 1, &callback_get_nodes, NULL);
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node", 1, &callback_get_nodes, NULL);
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node/param", 1, &callback_get_params, NULL);
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node/param/:paramid", 1, &callback_get_params, NULL);
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node/param/:paramid/value/:limit", 1, &callback_get_values, NULL);
-	ulfius_add_endpoint_by_val(&instance, "GET", NULL, "/node/:node/param/:paramid/value/:limit/:from/:to", 1, &callback_get_values, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node/:node", 1, &callback_get_nodes, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node/:node/param", 1, &callback_get_params, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node/:node/param/:paramid", 1, &callback_get_params, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node/:node/param/:paramid/value/:limit", 1, &callback_get_values, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node/:node/param/:paramid/value/:limit/:from/:to", 1, &callback_get_values, NULL);
 
+	ulfius_set_default_endpoint(&instance, &callback_default, NULL);
 
 	ret = init_db();
 	if (ret) {

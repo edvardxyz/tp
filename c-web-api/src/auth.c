@@ -158,7 +158,6 @@ int callback_login(const struct _u_request * request, struct _u_response * respo
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_ROW) {
-		fprintf(stderr, "User not found.\n");
 		sqlite3_finalize(stmt);
 		ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Invalid username or password"));
 		json_decref(json_payload);
