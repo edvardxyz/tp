@@ -338,14 +338,38 @@ int verify_jwt_hs256(const char * token) {
 }
 
 int callback_auth(const struct _u_request * request, struct _u_response * response, void * user_data) {
+
 	const char * auth = u_map_get(request->map_header, "Authorization");
+	const char * token = NULL;
+
+	if (strcmp(request->url_path, "/wsprint") == 0) {
+		printf("Authentication for websocket endpoint.\n");
+		token = u_map_get(request->map_url, "token");
+		if (!token) {
+			printf("Token missing.\n");
+			ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Token missing"));
+			return U_CALLBACK_UNAUTHORIZED;
+		}
+		if (!verify_jwt_hs256(token)) {
+			printf("Invalid token. %s \n", token);
+			ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Invalid token"));
+			return U_CALLBACK_UNAUTHORIZED;
+		}
+		return U_CALLBACK_CONTINUE;
+	}
+
 	if (!auth) {
 		ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Authorization header missing"));
 		return U_CALLBACK_UNAUTHORIZED;
 	}
 
+	if(strlen(auth) < 7) {
+		ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Invalid token"));
+		return U_CALLBACK_UNAUTHORIZED;
+	}
+
 	// Expected format: "Bearer <token>"
-	const char * token = auth + 7;
+	token = auth + 7;
 	if (!verify_jwt_hs256(token)) {
 		ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Invalid token"));
 		return U_CALLBACK_UNAUTHORIZED;

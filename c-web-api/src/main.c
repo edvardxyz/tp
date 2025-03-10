@@ -14,6 +14,7 @@
 #include "db.h"
 #include "sniffer.h"
 #include "contact.h"
+#include "ws.h"
 
 static char * read_file(const char * filename) {
 	char * buffer = NULL;
@@ -66,11 +67,11 @@ int ulfius_add_endpoint_by_val_auth(struct _u_instance * u_instance,
 	return 0;
 }
 
-int callback_options (const struct _u_request * request, struct _u_response * response, void * user_data) {
-  u_map_put(response->map_header, "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  u_map_put(response->map_header, "Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Bearer, Authorization");
-  u_map_put(response->map_header, "Access-Control-Max-Age", "1800");
-  return U_CALLBACK_COMPLETE;
+int callback_options(const struct _u_request * request, struct _u_response * response, void * user_data) {
+	u_map_put(response->map_header, "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+	u_map_put(response->map_header, "Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Bearer, Authorization");
+	u_map_put(response->map_header, "Access-Control-Max-Age", "1800");
+	return U_CALLBACK_COMPLETE;
 }
 
 int main(int argc, char ** argv) {
@@ -97,6 +98,8 @@ int main(int argc, char ** argv) {
 	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/subnet", 1, &callback_get_subnets, NULL);
 	ulfius_add_endpoint_by_val_auth(&instance, "POST", NULL, "/subnet", 1, &callback_post_subnets, NULL);
 	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/contact", 1, &callback_get_contacts, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/contact/:node", 1, &callback_get_contacts, NULL);
+	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/wsprint", 1, &callback_websocket, NULL);
 
 	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node", 1, &callback_get_nodes, NULL);
 	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node/:node", 1, &callback_get_nodes, NULL);
@@ -106,6 +109,8 @@ int main(int argc, char ** argv) {
 	ulfius_add_endpoint_by_val_auth(&instance, "GET", NULL, "/node/:node/param/:paramid/value/:limit/:from/:to", 1, &callback_get_values, NULL);
 
 	ulfius_set_default_endpoint(&instance, &callback_default, NULL);
+
+	init_thread_safe_node_queue();
 
 	ret = init_db();
 	if (ret) {

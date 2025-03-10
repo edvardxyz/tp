@@ -13,11 +13,16 @@
 #include <csp/csp_cmp.h>
 #include <csp/csp_hooks.h>
 #include <csp/interfaces/csp_if_zmqhub.h>
+#include <csp/csp_types.h>
+#include <csp/arch/csp_time.h>
 
 #include <sqlite3.h>
+#include <yder.h>
 #include "csp/csp_types.h"
 #include "db.h"
 #include "param/param_list.h"
+
+#include "ws.h"
 
 int me = 0;
 pthread_t param_sniffer_thread;
@@ -476,7 +481,7 @@ int upsert_contact(int node_to, int node_from, uint64_t time_sec) {
 		const char * insert_sql =
 			"INSERT INTO contact (node_to_id, node_from_id, time_sec) VALUES (?, ?, ?);";
 		static sqlite3_stmt * stmt = NULL;
-		if(!stmt) {
+		if (!stmt) {
 			rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, NULL);
 			if (rc != SQLITE_OK) {
 				fprintf(stderr, "Failed to prepare INSERT statement: %s\n", sqlite3_errmsg(db));
@@ -519,6 +524,30 @@ static void * param_sniffer(void * param) {
 
 		int dst = packet->id.dst;
 		int src = packet->id.src;
+
+		pthread_mutex_lock(&tsq.mutex);
+		struct node_item * item = NULL;
+		TAILQ_FOREACH(item, &tsq.queue, entries) {
+			if (item->node == src || item->node == dst) {
+				printf("Found matching node: %d\n", item->node);
+				y_log_message(Y_LOG_LEVEL_DEBUG, "Enqueueing data to %p", item->char_queue);
+				char buf[256] = {0};
+				csp_id_t * idout = &packet->id;
+
+				if (src == item->node) {
+					snprintf(buf, sizeof(buf) - 1,
+							 "OUT: S %u, D %u, Dp %u, Sp %u, Pr %u, Fl 0x%02X, Sz %u, Tms %u\n",
+							 idout->src, idout->dst, idout->dport, idout->sport, idout->pri, idout->flags, packet->length, csp_get_ms());
+				} else {
+					snprintf(buf, sizeof(buf) - 1,
+							 "IN: S %u, D %u, Dp %u, Sp %u, Pr %u, Fl 0x%02X, Sz %u, Tms %u\n",
+							 idout->src, idout->dst, idout->dport, idout->sport, idout->pri, idout->flags, packet->length, csp_get_ms());
+				}
+				enqueue_char(item->char_queue, buf);  // enqueue data to websocket it will strdup the data
+			}
+		}
+		pthread_mutex_unlock(&tsq.mutex);
+
 		if (src == me || dst == me) {
 			csp_buffer_free(packet);
 			continue;
