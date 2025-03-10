@@ -26,8 +26,8 @@ jansson_dep = dependency('jansson', required: true)
 ulfius_dep = dependency('libulfius', required: true)
 sqlite_dep = dependency('sqlite3', required: true)
 jwt_dep = dependency('libjwt', required: true)
-csp_dep = dependency('csp', fallback: ['csp', 'csp_dep'], required: true)
-param_dep = dependency('param', fallback: ['param', 'param_dep'], required: true)
+csp_dep = dependency('csp', fallback: ['csp', 'csp_dep'], static: true, required: true)
+param_dep = dependency('param', fallback: ['param', 'param_dep'], static: true, required: true)
 
 
 executable('c-api',
