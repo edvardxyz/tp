@@ -6,7 +6,7 @@
 #include <inttypes.h>
 #include <ulfius.h>
 
-#define PORT 443
+#define PORT 8888
 #include "auth.h"
 #include "subnet.h"
 #include "node.h"
