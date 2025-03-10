@@ -2,6 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'package:app/node.dart';
+import 'package:app/tokenhttp.dart';
 
 class Param {
   final int paramId;
@@ -44,8 +45,11 @@ class Param {
 }
 
 Future<List<Param>> fetchParams(Node node) async {
-  final response = await http.get(
-    Uri.parse('http://localhost:8888/node/${node.node}/param'),
+  final response = await performAuthenticatedRequest(
+    (headers) => http.get(
+      Uri.parse('http://localhost:8888/node/${node.node}/param'),
+      headers: headers,
+    ),
   );
   if (response.statusCode == 200) {
     final List<dynamic> data = jsonDecode(response.body);
@@ -58,7 +62,12 @@ Future<List<Param>> fetchParams(Node node) async {
 Future<List<num>> fetchParamValues(Node node, Param param) async {
   final url =
       'http://localhost:8888/node/${node.node}/param/${param.paramId}/value/${param.size}';
-  final response = await http.get(Uri.parse(url));
+  final response = await performAuthenticatedRequest(
+    (headers) => http.get(
+      Uri.parse(url),
+      headers: headers,
+    ),
+  );
   if (response.statusCode == 200) {
     final List<dynamic> data = jsonDecode(response.body);
     return data.map<num>((json) => json['value'] as num).toList();

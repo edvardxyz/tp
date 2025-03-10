@@ -9,6 +9,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/html.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
 void main() {
   runApp(const MyApp());
 }
@@ -387,6 +395,8 @@ class _SubnetDetailScreenState extends State<SubnetDetailScreen> {
                         columns: const [
                           DataColumn(label: Text('Hostname')),
                           DataColumn(label: Text('Node')),
+                          DataColumn(label: Text('Last contacted by')),
+                          DataColumn(label: Text('Time')),
                         ],
                         rows: nodes.map((node) {
                           return DataRow(
@@ -404,6 +414,11 @@ class _SubnetDetailScreenState extends State<SubnetDetailScreen> {
                             cells: [
                               DataCell(Text(node.name)),
                               DataCell(Text(node.node.toString())),
+                              DataCell(Text(node.nameFrom)),
+                              // Convert time to a human-readable format
+                              DataCell(Text(DateTime.fromMillisecondsSinceEpoch(
+                                      node.timeSec * 1000)
+                                  .toString())),
                             ],
                           );
                         }).toList(),
@@ -433,78 +448,144 @@ class NodeDetailScreen extends StatefulWidget {
 
 class _NodeDetailScreenState extends State<NodeDetailScreen> {
   late Future<List<Param>> _futureParams;
+  final List<String> _wsMessages = [];
+  late final WebSocketChannel _channel;
+  final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _futureParams = loadAndCombineParams(widget.node);
+
+    // Read the token asynchronously.
+    secureStorage.read(key: 'token').then((token) {
+      if (token == null) {
+        print('No token found, handle authentication here.');
+        // todo navigate to a login screen or show an error.
+        return;
+      }
+
+      final String wsUrl = 'ws://localhost:8888/wsprint?token=$token&node=${widget.node.node}';
+      
+      if (kIsWeb) {
+        _channel = HtmlWebSocketChannel.connect(wsUrl);
+      } else {
+        _channel = IOWebSocketChannel.connect(wsUrl);
+      }
+      
+      _channel.stream.listen((message) {
+        setState(() {
+          _wsMessages.add(message);
+        });
+        _scrollToBottom();
+      });
+    });
   }
 
+  void _scrollToBottom() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+
   @override
+  void dispose() {
+    _channel.sink.close();
+    super.dispose();
+  }
+
+ @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: Text('Parameters for ${widget.node.name}'),
-        ),
-        body: FutureBuilder<List<Param>>(
-          future: _futureParams,
-          builder: (context, snapshot) {
-            // 1. Loading state
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            // 2. Error state
-            if (snapshot.hasError) {
-              return Center(
-                child: Text('Error: ${snapshot.error}'),
-              );
-            }
-
-            // 3. Data loaded
-            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-              final params = snapshot.data!;
-              return SingleChildScrollView(
-                  scrollDirection:
-                      Axis.horizontal, // Allows horizontal scroll if needed
-                  child: SizedBox(
-                    width: MediaQuery.of(context).size.width,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.vertical,
-                      child: DataTable(
-                        showCheckboxColumn: false,
-                        columns: const [
-                          DataColumn(label: Text('Name')),
-                          DataColumn(label: Text('id')),
-                          DataColumn(label: Text('value')),
-                        ],
-                        rows: params.map((param) {
-                          return DataRow(
-                            onSelectChanged: (selected) {
-                              if (selected == true) {
-                                //Navigator.push(
-                                //context,
-                                //MaterialPageRoute(
-                                //builder: (context) => SubnetDetailScreen(node: node),
-                                //),
-                                //);
-                              }
-                            },
-                            cells: [
-                              DataCell(Text(param.name)),
-                              DataCell(Text(param.paramId.toString())),
-                              DataCell(Text(param.value.toString())),
-                            ],
-                          );
-                        }).toList(),
+      appBar: AppBar(
+        title: Text('Parameters for ${widget.node.name}'),
+      ),
+      body: Column(
+        children: [
+          // Expanded FutureBuilder for the DataTable.
+          Expanded(
+            child: FutureBuilder<List<Param>>(
+              future: _futureParams,
+              builder: (context, snapshot) {
+                // 1. Loading state
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                // 2. Error state
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
+                // 3. Data loaded
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  final params = snapshot.data!;
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal, // Allow horizontal scroll
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: DataTable(
+                          showCheckboxColumn: false,
+                          columns: const [
+                            DataColumn(label: Text('Name')),
+                            DataColumn(label: Text('id')),
+                            DataColumn(label: Text('value')),
+                          ],
+                          rows: params.map((param) {
+                            return DataRow(
+                              onSelectChanged: (selected) {
+                                if (selected == true) {
+                                  // Handle row selection if needed.
+                                }
+                              },
+                              cells: [
+                                DataCell(Text(param.name)),
+                                DataCell(Text(param.paramId.toString())),
+                                DataCell(Text(param.value.toString())),
+                              ],
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
-                  ));
-            }
-
-            // 4. If the list is empty
-            return const Center(child: Text('No parameters found.'));
-          },
-        ));
+                  );
+                }
+                // 4. If the list is empty
+                return const Center(child: Text('No parameters found.'));
+              },
+            ),
+          ),
+          // A small box at the bottom that displays WebSocket messages.
+          Container(
+            height: 150, // Fixed height for the WebSocket message area.
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.purple),
+            ),
+            child: ListView.builder(
+              controller: _scrollController,
+              itemCount: _wsMessages.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                  child: SelectableText(
+                    _wsMessages[index].trim(),
+                    style: const TextStyle(height: 1.0),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
