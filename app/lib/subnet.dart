@@ -2,12 +2,13 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:app/constants.dart';
 import 'package:app/tokenhttp.dart';
 
  Future<List<Subnet>> fetchSubnets() async {
   final response = await performAuthenticatedRequest(
     (headers) => http.get(
-      Uri.parse('http://localhost:8888/subnet'),
+      Uri.parse('https://$serverUrl/subnet'),
       headers: headers,
     ),
   );

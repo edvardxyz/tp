@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:app/subnet.dart';
 import 'package:app/node.dart';
 import 'package:app/param.dart';
+import 'package:app/constants.dart';
 
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -67,7 +68,7 @@ class LoginScreen extends StatelessWidget {
     final String username = usernameController.text;
     final String password = passwordController.text;
 
-    final Uri url = Uri.parse('http://localhost:8888/login');
+    final Uri url = Uri.parse('https://$serverUrl/login');
 
     try {
       final response = await http.post(
@@ -170,7 +171,7 @@ class RegisterScreen extends StatelessWidget {
     final String username = usernameController.text;
     final String password = passwordController.text;
 
-    final Uri url = Uri.parse('http://localhost:8888/register');
+    final Uri url = Uri.parse('https://$serverUrl/register');
 
     try {
       final response = await http.post(
@@ -466,7 +467,7 @@ class _NodeDetailScreenState extends State<NodeDetailScreen> {
         return;
       }
 
-      final String wsUrl = 'ws://localhost:8888/wsprint?token=$token&node=${widget.node.node}';
+      final String wsUrl = 'wss://$serverUrl/wsprint?token=$token&node=${widget.node.node}';
       
       if (kIsWeb) {
         _channel = HtmlWebSocketChannel.connect(wsUrl);

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:app/node.dart';
 import 'package:app/tokenhttp.dart';
+import 'package:app/constants.dart';
 
 class Param {
   final int paramId;
@@ -47,7 +48,7 @@ class Param {
 Future<List<Param>> fetchParams(Node node) async {
   final response = await performAuthenticatedRequest(
     (headers) => http.get(
-      Uri.parse('http://localhost:8888/node/${node.node}/param'),
+      Uri.parse('https://$serverUrl/node/${node.node}/param'),
       headers: headers,
     ),
   );
@@ -61,7 +62,7 @@ Future<List<Param>> fetchParams(Node node) async {
 
 Future<List<num>> fetchParamValues(Node node, Param param) async {
   final url =
-      'http://localhost:8888/node/${node.node}/param/${param.paramId}/value/${param.size}';
+      'https://$serverUrl/node/${node.node}/param/${param.paramId}/value/${param.size}';
   final response = await performAuthenticatedRequest(
     (headers) => http.get(
       Uri.parse(url),

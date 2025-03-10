@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:app/constants.dart';
 
 final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
 
@@ -17,7 +18,7 @@ Future<bool> refreshToken() async {
   if (refreshToken == null) return false;
 
   final response = await http.post(
-    Uri.parse('http://localhost:8888/refresh'),
+    Uri.parse('https://$serverUrl/refresh'),
     headers: {
       'Content-Type': 'application/json',
     },

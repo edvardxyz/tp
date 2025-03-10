@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
+import 'package:app/constants.dart';
 
 import 'package:app/subnet.dart';
 import 'package:app/tokenhttp.dart';
@@ -21,7 +22,7 @@ Future<List<Node>> fetchNodes(Subnet subnet) async {
 Future<Node?> _fetchNode(int nodeAddress) async {
   final response = await performAuthenticatedRequest(
     (headers) => http.get(
-      Uri.parse('http://localhost:8888/contact/$nodeAddress'),
+      Uri.parse('https://$serverUrl/contact/$nodeAddress'),
       headers: headers,
     ),
   );
