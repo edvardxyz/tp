@@ -40,6 +40,7 @@ executable('c-api',
     'src/param.c',
     'src/contact.c',
     'src/auth.c',
+    'src/ws.c',
   ],
   dependencies: [ulfius_dep, sqlite_dep, jwt_dep, jansson_dep, csp_dep, param_dep, zmq_dep, libbcrypt_dep],
 )
