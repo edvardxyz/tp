@@ -646,8 +646,8 @@ static int csp_ifadd_zmq(int node, char * host, char * key_file) {
 	int mask = 8;
 	int dfl = 1;
 	char * sec_key = NULL;
-	unsigned int subport = 6000;
-	unsigned int pubport = 7000;
+	unsigned int subport = 0;
+	unsigned int pubport = 0;
 	char * server = strdup(host);
 	unsigned int addr = node;
 	me = node;
