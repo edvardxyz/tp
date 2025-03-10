@@ -124,7 +124,7 @@ int main(int argc, char ** argv) {
 		return 1;
 	}
 
-	ret = param_sniffer_init(60, "localhost", "../zmq.key");
+	ret = param_sniffer_init(60, "localhost", "zmq.key");
 	if (ret) {
 		y_log_message(Y_LOG_LEVEL_ERROR, "Error opening starting sniffer");
 		return 1;
