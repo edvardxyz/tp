@@ -635,7 +635,7 @@ static void * param_sniffer(void * param) {
 	return NULL;
 }
 
-static int csp_ifadd_zmq(int node, char * host) {
+static int csp_ifadd_zmq(int node, char * host, char * key_file) {
 
 	static int ifidx = 0;
 
@@ -645,7 +645,6 @@ static int csp_ifadd_zmq(int node, char * host) {
 	int promisc = 1;
 	int mask = 8;
 	int dfl = 1;
-	char * key_file = NULL;
 	char * sec_key = NULL;
 	unsigned int subport = 6000;
 	unsigned int pubport = 7000;
@@ -721,7 +720,7 @@ void * router_task(void * param) {
 	}
 }
 
-int param_sniffer_init(int node, char * host) {
+int param_sniffer_init(int node, char * host, char * key_file) {
 
 	csp_conf.hostname = "SqliteSniffer";
 	csp_conf.model = "";
@@ -737,7 +736,7 @@ int param_sniffer_init(int node, char * host) {
 	pthread_create(&router_handle, NULL, &router_task, NULL);
 
 	// TODO take args
-	int res = csp_ifadd_zmq(node, host);
+	int res = csp_ifadd_zmq(node, host, key_file);
 
 	pthread_create(&param_sniffer_thread, NULL, &param_sniffer, NULL);
 
