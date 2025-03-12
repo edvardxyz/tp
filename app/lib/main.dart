@@ -10,13 +10,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:web_socket_channel/io.dart';
-import 'package:web_socket_channel/html.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/web_socket_channel.dart'
+    if (dart.library.html) 'package:web_socket_channel/html.dart'
+    if (dart.library.io) 'package:web_socket_channel/io.dart';
 
 void main() {
   runApp(const MyApp());
@@ -469,11 +467,7 @@ class _NodeDetailScreenState extends State<NodeDetailScreen> {
 
       final String wsUrl = 'wss://$serverUrl/wsprint?token=$token&node=${widget.node.node}';
       
-      if (kIsWeb) {
-        _channel = HtmlWebSocketChannel.connect(wsUrl);
-      } else {
-        _channel = IOWebSocketChannel.connect(wsUrl);
-      }
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       
       _channel.stream.listen((message) {
         setState(() {
