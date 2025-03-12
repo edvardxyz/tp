@@ -372,7 +372,7 @@ int callback_auth(const struct _u_request * request, struct _u_response * respon
 	const char * auth = u_map_get(request->map_header, "Authorization");
 	const char * token = NULL;
 
-	print_map(request->map_header);
+	printf("%s\n", print_map(request->map_header));
 
 	if (strcmp(request->url_path, "/wsprint") == 0) {
 		printf("Authentication for websocket endpoint.\n");
