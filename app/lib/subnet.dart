@@ -17,7 +17,7 @@ import 'package:app/tokenhttp.dart';
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((json) => Subnet.fromJson(json)).toList();
   } else {
-    throw Exception('Failed to load subnets');
+    throw Exception('Failed to load subnets ${response.statusCode}');
   }
 }
 

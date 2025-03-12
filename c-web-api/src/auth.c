@@ -359,11 +359,13 @@ int callback_auth(const struct _u_request * request, struct _u_response * respon
 	}
 
 	if (!auth) {
+		printf("Authorization header missing.\n");
 		ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Authorization header missing"));
 		return U_CALLBACK_UNAUTHORIZED;
 	}
 
 	if(strlen(auth) < 7) {
+		printf("Invalid token.\n");
 		ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Invalid token"));
 		return U_CALLBACK_UNAUTHORIZED;
 	}
@@ -371,6 +373,7 @@ int callback_auth(const struct _u_request * request, struct _u_response * respon
 	// Expected format: "Bearer <token>"
 	token = auth + 7;
 	if (!verify_jwt_hs256(token)) {
+		printf("Invalid token. verify\n");
 		ulfius_set_json_body_response(response, 401, json_pack("{s:s}", "error", "Invalid token"));
 		return U_CALLBACK_UNAUTHORIZED;
 	}
