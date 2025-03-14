@@ -363,7 +363,6 @@ class _MyHomePageState extends State<MyHomePage> {
       // butten to get the current position
     floatingActionButton: FloatingActionButton(
       onPressed: () async {
-          if(context.mounted) {
           try {
                 final position = await _determinePosition();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -380,7 +379,6 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             );
           }
-        }
       },
       tooltip: 'Get current position',
       child: const Icon(Icons.location_on),
