@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:web_socket_channel/web_socket_channel.dart'
     if (dart.library.html) 'package:web_socket_channel/html.dart'
@@ -18,6 +19,32 @@ import 'package:web_socket_channel/web_socket_channel.dart'
 
 void main() {
   runApp(const MyApp());
+}
+
+Future<Position> _determinePosition() async {
+  bool serviceEnabled;
+  LocationPermission permission;
+
+  // Test if location services are enabled.
+  serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    return Future.error('Location services are disabled.');
+  }
+
+  permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      return Future.error('Location permissions are denied');
+    }
+  }
+
+  if (permission == LocationPermission.deniedForever) {
+    return Future.error(
+      'Location permissions are permanently denied, we cannot request permissions.');
+  } 
+
+  return await Geolocator.getCurrentPosition();
 }
 
 class MyApp extends StatelessWidget {
@@ -271,6 +298,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   late Future<List<Subnet>> _futureSubnets;
 
+
   @override
   void initState() {
     super.initState();
@@ -294,7 +322,6 @@ class _MyHomePageState extends State<MyHomePage> {
           }
           if (snapshot.hasData && snapshot.data!.isNotEmpty) {
             final subnets = snapshot.data!;
-
             return SingleChildScrollView(
                 scrollDirection:
                     Axis.horizontal, // Allows horizontal scroll if needed
@@ -333,6 +360,32 @@ class _MyHomePageState extends State<MyHomePage> {
           return const Center(child: Text('No subnets found.'));
         },
       ),
+      // butten to get the current position
+    floatingActionButton: FloatingActionButton(
+      onPressed: () async {
+          if(context.mounted) {
+          try {
+                final position = await _determinePosition();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Latitude: ${position.latitude}, Longitude: ${position.longitude}',
+                    ),
+                  ),
+                );
+          } catch (error) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: $error'),
+              ),
+            );
+          }
+        }
+      },
+      tooltip: 'Get current position',
+      child: const Icon(Icons.location_on),
+    ),
+
     );
   }
 }
